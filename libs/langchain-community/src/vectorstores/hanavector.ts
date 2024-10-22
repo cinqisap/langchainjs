@@ -327,11 +327,13 @@ export class HanaDB extends VectorStore {
         `"${this.contentColumn}" NCLOB, ` +
         `"${this.metadataColumn}" NCLOB, ` +
         `"${this.vectorColumn}" REAL_VECTOR`;
+      // Length can either be -1 (QRC01+02-24) or 0 (QRC03-24 onwards)
+      if (this.vectorColumnLength === -1 || this.vectorColumnLength === 0) {
+        sqlStr += ");";
+      } else {
+        sqlStr += `(${this.vectorColumnLength}));`;
+      }
 
-      sqlStr +=
-        this.vectorColumnLength === -1
-          ? ");"
-          : `(${this.vectorColumnLength}));`;
       const client = this.connection;
       await this.executeQuery(client, sqlStr);
     }
@@ -453,7 +455,10 @@ export class HanaDB extends VectorStore {
             queryTuple.push(specialVal);
           }
         } else if (specialOp === BETWEEN_OPERATOR) {
-          const [betweenFrom, betweenTo] = specialVal as [FilterValue, FilterValue];
+          const [betweenFrom, betweenTo] = specialVal as [
+            FilterValue,
+            FilterValue
+          ];
           operator = "BETWEEN";
           sqlParam = "? AND ?";
           if (Array.isArray(specialVal) && specialVal.length === 2) {
