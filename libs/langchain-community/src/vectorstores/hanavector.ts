@@ -17,6 +17,10 @@ const COMPARISONS_TO_SQL: Record<string, string> = {
   $gte: ">=",
 };
 
+interface FilterObject {
+  [key: string]: FilterValue;
+}
+
 type FilterValue =
   | string
   | number
@@ -30,9 +34,13 @@ const IN_OPERATORS_TO_SQL: Record<string, string> = {
   $nin: "NOT IN",
 };
 
-const BETWEEN_OPERATOR = "$between";
+const BETWEEN_OPERATOR_TO_SQL: Record<string, string> = {
+  $between: "BETWEEN",
+};
 
-const LIKE_OPERATOR = "$like";
+const LIKE_OPERATOR_TO_SQL: Record<string, string> = {
+  $like: "LIKE",
+};
 
 const LOGICAL_OPERATORS_TO_SQL: Record<string, string> = {
   $and: "AND",
@@ -50,12 +58,6 @@ const defaultContentColumn = "VEC_TEXT";
 const defaultMetadataColumn = "VEC_META";
 const defaultVectorColumn = "VEC_VECTOR";
 const defaultVectorColumnLength = -1; // -1 means dynamic length
-
-interface FilterObject {
-  [key: string]: FilterValue;
-}
-
-// interface Filter { [key: string]: boolean | string | number; }
 
 /**
  * Interface defining the arguments required to create an instance of
@@ -394,7 +396,7 @@ export class HanaDB extends VectorStore {
         const logicalOperator = LOGICAL_OPERATORS_TO_SQL[key];
         const logicalOperands = filterValue as FilterObject[];
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        logicalOperands.forEach((operand: any, j: number) => {
+        logicalOperands.forEach((operand: FilterObject, j: number) => {
           if (j !== 0) {
             whereStr += ` ${logicalOperator} `;
           }
@@ -431,14 +433,6 @@ export class HanaDB extends VectorStore {
         // Handling of 'special' operators starting with "$"
         if (specialOp in COMPARISONS_TO_SQL) {
           operator = COMPARISONS_TO_SQL[specialOp];
-
-          // Ensure specialVal is defined before pushing to queryTuple
-          // if (specialVal !== undefined) {
-          //   queryTuple.push(specialVal.toString());
-          // } else {
-          //   throw new Error(`Operator '${specialOp}' expects a non-undefined value.`);
-          // }
-          // operator = COMPARISONS_TO_SQL[specialOp];
           if (typeof specialVal === "boolean") {
             queryTuple.push(specialVal.toString());
           } else if (typeof specialVal === "number") {
@@ -454,20 +448,20 @@ export class HanaDB extends VectorStore {
           } else {
             queryTuple.push(specialVal);
           }
-        } else if (specialOp === BETWEEN_OPERATOR) {
+        } else if (specialOp in BETWEEN_OPERATOR_TO_SQL) {
+          // ensure the value is an array with exact length of 2
+          if (!Array.isArray(specialVal) || specialVal.length !== 2) {
+            throw new Error(`Operator '${specialOp}' expects two values.`);
+          }
           const [betweenFrom, betweenTo] = specialVal as [
             FilterValue,
             FilterValue
           ];
-          operator = "BETWEEN";
+          operator = BETWEEN_OPERATOR_TO_SQL[specialOp];
           sqlParam = "? AND ?";
-          if (Array.isArray(specialVal) && specialVal.length === 2) {
-            queryTuple.push(betweenFrom.toString(), betweenTo.toString());
-          } else {
-            throw new Error(`Operator '${specialOp}' expects two values.`);
-          }
-        } else if (specialOp === LIKE_OPERATOR) {
-          operator = "LIKE";
+          queryTuple.push(betweenFrom.toString(), betweenTo.toString());
+        } else if (specialOp in LIKE_OPERATOR_TO_SQL) {
+          operator = LIKE_OPERATOR_TO_SQL[specialOp];
           if (specialVal !== undefined) {
             queryTuple.push(specialVal.toString());
           } else {
@@ -478,16 +472,21 @@ export class HanaDB extends VectorStore {
         } else if (specialOp in IN_OPERATORS_TO_SQL) {
           operator = IN_OPERATORS_TO_SQL[specialOp];
           if (Array.isArray(specialVal)) {
-            sqlParam = "(";
-            specialVal.forEach((listEntry, i) => {
-              sqlParam += "?";
-              if (i === specialVal.length - 1) {
-                sqlParam += ")";
-              } else {
-                sqlParam += ",";
-              }
-              queryTuple.push(listEntry.toString());
-            });
+            // sqlParam = "(";
+            // specialVal.forEach((listEntry, i) => {
+            //   sqlParam += "?";
+            //   if (i === specialVal.length - 1) {
+            //     sqlParam += ")";
+            //   } else {
+            //     sqlParam += ",";
+            //   }
+            //   queryTuple.push(listEntry.toString());
+            // });
+            const placeholders = Array(specialVal.length).fill("?").join(",");
+            sqlParam = `(${placeholders})`;
+            queryTuple.push(
+              ...specialVal.map((listEntry) => listEntry.toString())
+            );
           } else {
             throw new Error(`Unsupported value for ${operator}: ${specialVal}`);
           }
@@ -539,34 +538,49 @@ export class HanaDB extends VectorStore {
     const defaultIndexName = `${this.tableName}_${distanceFuncName}_idx`;
 
     // Use provided indexName or fallback to default
-    const finalIndexName = indexName || defaultIndexName;
-
+    // const finalIndexName = indexName || defaultIndexName;
+    const finalIndexName = HanaDB.sanitizeName(indexName || defaultIndexName);
     // Initialize buildConfig and searchConfig objects
     const buildConfig: Record<string, number> = {};
     const searchConfig: Record<string, number> = {};
 
     // Validate and add m parameter to buildConfig if provided
     if (m !== undefined) {
-      if (m < 4 || m > 1000) {
+      const sanitizedM = HanaDB.sanitizeInt(m);
+      const minimumHnswM = 4;
+      const maximumHnswM = 1000;
+      if (sanitizedM < minimumHnswM || sanitizedM > maximumHnswM) {
         throw new Error("M must be in the range [4, 1000]");
       }
-      buildConfig.M = m;
+      buildConfig.M = sanitizedM;
     }
 
     // Validate and add efConstruction to buildConfig if provided
     if (efConstruction !== undefined) {
-      if (efConstruction < 1 || efConstruction > 100000) {
+      const sanitizedEfConstruction = HanaDB.sanitizeInt(efConstruction);
+      const minimumEfConstruction = 1;
+      const maximumEfConstruction = 100000;
+      if (
+        sanitizedEfConstruction < minimumEfConstruction ||
+        sanitizedEfConstruction > maximumEfConstruction
+      ) {
         throw new Error("efConstruction must be in the range [1, 100000]");
       }
-      buildConfig.efConstruction = efConstruction;
+      buildConfig.efConstruction = sanitizedEfConstruction;
     }
 
     // Validate and add efSearch to searchConfig if provided
     if (efSearch !== undefined) {
-      if (efSearch < 1 || efSearch > 100000) {
+      const sanitizedEfSearch = HanaDB.sanitizeInt(efSearch);
+      const minimumEfSearch = 1;
+      const maximumEfSearch = 100000;
+      if (
+        sanitizedEfSearch < minimumEfSearch ||
+        sanitizedEfSearch > maximumEfSearch
+      ) {
         throw new Error("efSearch must be in the range [1, 100000]");
       }
-      searchConfig.efSearch = efSearch;
+      searchConfig.efSearch = sanitizedEfSearch;
     }
 
     // Convert buildConfig and searchConfig to JSON strings if they contain values
@@ -592,7 +606,7 @@ export class HanaDB extends VectorStore {
     }
 
     // Add the ONLINE option
-    sqlStr += "ONLINE ";
+    sqlStr += "ONLINE;";
 
     const client = this.connection;
     await this.executeQuery(client, sqlStr);
@@ -620,8 +634,6 @@ export class HanaDB extends VectorStore {
 
     const [whereStr, queryTuple] = this.createWhereByFilter(filter);
     const sqlStr = `DELETE FROM "${this.tableName}" ${whereStr}`;
-    // console.log(sqlStr)
-    // console.log("query tuple", queryTuple)
     const client = this.connection;
     const stm = await this.prepareQuery(client, sqlStr);
     await this.executeStatement(stm, queryTuple);
@@ -789,7 +801,6 @@ export class HanaDB extends VectorStore {
     k: number,
     filter?: FilterObject
   ): Promise<Array<[Document, number, number[]]>> {
-    // const result: Array<[Document, number, number[]]> = [];
     // Sanitize inputs
     const sanitizedK = HanaDB.sanitizeInt(k);
     const sanitizedEmbedding = HanaDB.sanitizeListFloat(embedding);
@@ -812,8 +823,6 @@ export class HanaDB extends VectorStore {
     const [whereStr, queryTuple] = this.createWhereByFilter(filter);
 
     sqlStr += whereStr + orderStr;
-    // console.log("SQL: ",sqlStr)
-    // console.log("query tuple:", queryTuple)
     const client = this.connection;
     const stm = await this.prepareQuery(client, sqlStr);
     const resultSet = await this.executeStatement(stm, queryTuple);

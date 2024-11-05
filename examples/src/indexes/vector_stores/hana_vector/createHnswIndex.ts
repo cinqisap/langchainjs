@@ -92,6 +92,7 @@ docsL2.forEach((doc) => {
   console.log("-".repeat(80));
   console.log(doc.pageContent);
 });
-// The L2 distance results shoule be the same as cosine search results.
+// The L2 distance results should be the same as cosine search results.
+
 // Disconnect from SAP HANA after the operations
 client.disconnect();
