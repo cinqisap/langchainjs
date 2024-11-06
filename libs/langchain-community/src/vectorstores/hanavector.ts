@@ -114,8 +114,9 @@ export class HanaDB extends VectorStore {
       args.vectorColumn || defaultVectorColumn
     );
     this.vectorColumnLength = HanaDB.sanitizeInt(
-      args.vectorColumnLength || defaultVectorColumnLength
-    ); // Using '??' to allow 0 as a valid value
+      args.vectorColumnLength || defaultVectorColumnLength,
+      -1
+    );
     this.specificMetadataColumns = HanaDB.sanitizeSpecificMetadataColumns(
       args.specificMetadataColumns || []
     );
@@ -208,11 +209,12 @@ export class HanaDB extends VectorStore {
    * @param inputInt The input to be sanitized.
    * @returns The sanitized integer.
    */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  public static sanitizeInt(inputInt: any): number {
+  public static sanitizeInt(inputInt: number | string, lowerBound = 0): number {
     const value = parseInt(inputInt.toString(), 10);
-    if (Number.isNaN(value) || value < -1) {
-      throw new Error(`Value (${value}) must not be smaller than -1`);
+    if (Number.isNaN(value) || value < lowerBound) {
+      throw new Error(
+        `Value (${value}) must not be smaller than ${lowerBound}`
+      );
     }
     return value;
   }
@@ -395,12 +397,10 @@ export class HanaDB extends VectorStore {
       if (key in LOGICAL_OPERATORS_TO_SQL) {
         const logicalOperator = LOGICAL_OPERATORS_TO_SQL[key];
         const logicalOperands = filterValue as FilterObject[];
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         logicalOperands.forEach((operand: FilterObject, j: number) => {
           if (j !== 0) {
             whereStr += ` ${logicalOperator} `;
           }
-
           const [whereLogical, paramsLogical] =
             this.processFilterObject(operand);
           whereStr += "(" + whereLogical + ")";
@@ -472,16 +472,6 @@ export class HanaDB extends VectorStore {
         } else if (specialOp in IN_OPERATORS_TO_SQL) {
           operator = IN_OPERATORS_TO_SQL[specialOp];
           if (Array.isArray(specialVal)) {
-            // sqlParam = "(";
-            // specialVal.forEach((listEntry, i) => {
-            //   sqlParam += "?";
-            //   if (i === specialVal.length - 1) {
-            //     sqlParam += ")";
-            //   } else {
-            //     sqlParam += ",";
-            //   }
-            //   queryTuple.push(listEntry.toString());
-            // });
             const placeholders = Array(specialVal.length).fill("?").join(",");
             sqlParam = `(${placeholders})`;
             queryTuple.push(
@@ -546,9 +536,9 @@ export class HanaDB extends VectorStore {
 
     // Validate and add m parameter to buildConfig if provided
     if (m !== undefined) {
-      const sanitizedM = HanaDB.sanitizeInt(m);
       const minimumHnswM = 4;
       const maximumHnswM = 1000;
+      const sanitizedM = HanaDB.sanitizeInt(m, minimumHnswM);
       if (sanitizedM < minimumHnswM || sanitizedM > maximumHnswM) {
         throw new Error("M must be in the range [4, 1000]");
       }
@@ -557,9 +547,12 @@ export class HanaDB extends VectorStore {
 
     // Validate and add efConstruction to buildConfig if provided
     if (efConstruction !== undefined) {
-      const sanitizedEfConstruction = HanaDB.sanitizeInt(efConstruction);
       const minimumEfConstruction = 1;
       const maximumEfConstruction = 100000;
+      const sanitizedEfConstruction = HanaDB.sanitizeInt(
+        efConstruction,
+        minimumEfConstruction
+      );
       if (
         sanitizedEfConstruction < minimumEfConstruction ||
         sanitizedEfConstruction > maximumEfConstruction
@@ -571,9 +564,9 @@ export class HanaDB extends VectorStore {
 
     // Validate and add efSearch to searchConfig if provided
     if (efSearch !== undefined) {
-      const sanitizedEfSearch = HanaDB.sanitizeInt(efSearch);
       const minimumEfSearch = 1;
       const maximumEfSearch = 100000;
+      const sanitizedEfSearch = HanaDB.sanitizeInt(efSearch, minimumEfSearch);
       if (
         sanitizedEfSearch < minimumEfSearch ||
         sanitizedEfSearch > maximumEfSearch

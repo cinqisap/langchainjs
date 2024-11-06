@@ -34,13 +34,13 @@ const embeddings = new OpenAIEmbeddings();
 // First instance using the existing table "test_fromDocs" (default: Cosine similarity)
 const argsCosine: HanaDBArgs = {
   connection: client,
-  tableName: "test_fromDocs"
+  tableName: "test_fromDocs",
 };
 
 // Second instance using the existing table "test_fromDocs" but with L2 Euclidean distance
 const argsL2: HanaDBArgs = {
   connection: client,
-  tableName: "test_fromDocs", 
+  tableName: "test_fromDocs",
   distanceStrategy: "euclidean", // Use Euclidean distance for this instance
 };
 
@@ -50,7 +50,7 @@ const vectorStoreL2 = new HanaDB(embeddings, argsL2);
 
 // Create HNSW index with Cosine similarity (default)
 await vectorStoreCosine.createHnswIndex({
-  indexName: 'hnsw_cosine_index',
+  indexName: "hnsw_cosine_index",
   efSearch: 400,
   m: 50,
   efConstruction: 150,
@@ -58,7 +58,7 @@ await vectorStoreCosine.createHnswIndex({
 
 // Create HNSW index with Euclidean (L2) distance
 await vectorStoreL2.createHnswIndex({
-  indexName: 'hnsw_l2_index',
+  indexName: "hnsw_l2_index",
   efSearch: 400,
   m: 50,
   efConstruction: 150,

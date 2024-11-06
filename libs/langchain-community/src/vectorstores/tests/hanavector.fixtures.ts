@@ -95,7 +95,10 @@ export const TYPE_2_FILTERING_TEST_CASES: TestCase[] = [
   { filter: { height: { $lt: 5.0 } }, expected: [3] },
   { filter: { height: { $lte: 5.8 } }, expected: [2, 3] },
   // New date-related test cases
-  { filter: { date: { $eq: {type: "date", date: "2021-01-01"} }}, expected: [1, 3] },
+  {
+    filter: { date: { $eq: { type: "date", date: "2021-01-01" } } },
+    expected: [1, 3],
+  },
   { filter: { date: { $ne: "2021-01-01" } }, expected: [2] },
   { filter: { date: { $gt: "2021-01-01" } }, expected: [2] },
   { filter: { date: { $gte: "2021-01-01" } }, expected: [1, 2, 3] },

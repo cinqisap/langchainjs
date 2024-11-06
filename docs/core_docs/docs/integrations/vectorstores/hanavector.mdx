@@ -39,7 +39,7 @@ import ExampleLoader from "@examples/indexes/vector_stores/hana_vector/fromDocs.
 
 A vector index can significantly speed up top-k nearest neighbor queries for vectors. Users can create a Hierarchical Navigable Small World (HNSW) vector index using the `create_hnsw_index` function.
 
-For more information about creating an index at the database level, like parameters requirement, please refer to the [official documentation](https://help.sap.com/docs/hana-cloud-database/sap-hana-cloud-sap-hana-database-vector-engine-guide/create-vector-index-statement-data-definition).
+For more information about creating an index at the database level, such as parameters requirement, please refer to the [official documentation](https://help.sap.com/docs/hana-cloud-database/sap-hana-cloud-sap-hana-database-vector-engine-guide/create-vector-index-statement-data-definition).
 
 import ExampleIndex from "@examples/indexes/vector_stores/hana_vector/createHnswIndex.ts";
 
@@ -52,7 +52,8 @@ import ExampleBasic from "@examples/indexes/vector_stores/hana_vector/basics.ts"
 <CodeBlock language="typescript">{ExampleBasic}</CodeBlock>
 
 ## Advanced filtering
-import { Table, Tr, Th, Td } from '@mdx-js/react'
+
+import { Table, Tr, Th, Td } from "@mdx-js/react";
 
 In addition to the basic value-based filtering capabilities, it is possible to use more advanced filtering. The table below shows the available filter operators.
 
@@ -102,7 +103,10 @@ In addition to the basic value-based filtering capabilities, it is possible to u
     </Tr>
     <Tr>
       <Td>$like</Td>
-      <Td>Text equality based on the "LIKE" semantics in SQL (using "%" as wildcard)</Td>
+      <Td>
+        Text equality based on the "LIKE" semantics in SQL (using "%" as
+        wildcard)
+      </Td>
     </Tr>
     <Tr>
       <Td>$and</Td>
